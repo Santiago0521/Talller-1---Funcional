@@ -152,4 +152,121 @@ class CifradosClasicosTest extends AnyFunSuite {
   test("vigenere: con una clave de una sola letra es un César") {
     assert(vigenere("hola mundo", "d") == cesar("hola mundo", 3))
   }
+
+  // Nuevos tests --------------------------------------------------------------
+  // Punto 1: cesar ------------------------------------------------------------
+
+  test("cesar: desplaza correctamente una letra intermedia") {
+    assert(cesar("m", 5) == "r")
+  }
+
+  test("cesar: un desplazamiento de 26 deja el mensaje igual") {
+    assert(cesar("abcdefghijklmnopqrstuvwxyz", 26) ==
+      "abcdefghijklmnopqrstuvwxyz")
+  }
+
+  test("cesar: un desplazamiento negativo cruza el inicio del alfabeto") {
+    assert(cesar("abc", -1) == "zab")
+  }
+
+  test("cesar: un desplazamiento mayor que 26 se reduce correctamente") {
+    assert(cesar("xyz", 52) == "xyz")
+  }
+
+  test("cesar: conserva todos los caracteres que no son minúsculas") {
+    assert(cesar("Hola, Mundo! 123.", 5) == "Htqf, Mzsit! 123.")
+  }
+
+  // Punto 2: cesarCola --------------------------------------------------------
+
+  test("cesarCola: un desplazamiento negativo cruza el inicio del alfabeto") {
+    assert(cesarCola("abc", -1) == "zab")
+  }
+
+  test("cesarCola: conserva caracteres que no son letras minúsculas") {
+    assert(cesarCola("Hola, 123!", 4) == "Hspe, 123!")
+  }
+
+  test("cesarCola: un desplazamiento de 26 no cambia el mensaje") {
+    assert(cesarCola("abcdefghijklmnopqrstuvwxyz", 26) ==
+      "abcdefghijklmnopqrstuvwxyz")
+  }
+
+  test("cesarCola: funciona con un mensaje de una sola letra") {
+    assert(cesarCola("z", 1) == "a")
+  }
+
+  test("cesarCola: funciona con un mensaje compuesto solo por caracteres no cifrables") {
+    assert(cesarCola("123 !?,.", 10) == "123 !?,.")
+  }
+
+  // Punto 3: frecuencias ------------------------------------------------------
+
+  test("frecuencias: ignora mayúsculas") {
+    assert(frecuencias("AaBbAa") == List(('a', 2), ('b', 1)))
+  }
+
+  test("frecuencias: ignora números y signos") {
+    assert(frecuencias("a1!a?b2b.") ==
+      List(('a', 2), ('b', 2)))
+  }
+
+  test("frecuencias: una sola letra aparece una vez") {
+    assert(frecuencias("x") == List(('x', 1)))
+  }
+
+  test("frecuencias: ordena primero por frecuencia y luego alfabéticamente") {
+    assert(frecuencias("ccaaabbbdd") ==
+      List(('a', 3), ('b', 3), ('c', 2), ('d', 2)))
+  }
+
+  test("frecuencias: caracteres repetidos separados por otros caracteres se acumulan") {
+    assert(frecuencias("a-b-a_c") ==
+      List(('a', 2), ('b', 1), ('c', 1)))
+  }
+
+  // Punto 4: desplazamientoProbable y romperCesar ---------------------------
+
+  test("desplazamientoProbable: z como letra más frecuente da 21") {
+    assert(desplazamientoProbable("zzzz") == 21)
+  }
+
+  test("desplazamientoProbable: e como letra más frecuente da 0") {
+    assert(desplazamientoProbable("eeeee") == 0)
+  }
+
+  test("desplazamientoProbable: ignora caracteres que no son minúsculas") {
+    assert(desplazamientoProbable("!!!111hhh???") == 3)
+  }
+
+  test("romperCesar: recupera un mensaje cifrado con desplazamiento negativo") {
+    val original = "este mensaje tiene muchas letras e"
+    assert(romperCesar(cesar(original, -4)) == original)
+  }
+
+  test("romperCesar: un mensaje vacío permanece vacío") {
+    assert(romperCesar("") == "")
+  }
+
+  // Punto 5: combinaciones y vigenere ----------------------------------------
+
+  test("combinaciones: con longitud 0 el resultado siempre es 1") {
+    assert(combinaciones(0, 100) == BigInt(1))
+  }
+
+  test("combinaciones: con longitud 2 y alfabeto de 3 da 6") {
+    assert(combinaciones(2, 3) == BigInt(6))
+  }
+
+  test("combinaciones: con longitud 4 y alfabeto de 2 da 2") {
+    assert(combinaciones(4, 2) == BigInt(2))
+  }
+
+  test("vigenere: una clave de z desplaza cada letra 25 posiciones") {
+    assert(vigenere("abc", "z") == "zab")
+  }
+
+  test("vigenere: conserva mayúsculas, números y signos sin consumir la clave") {
+    assert(vigenere("A1a!b", "bc") == "A1b!d")
+  }
 }
