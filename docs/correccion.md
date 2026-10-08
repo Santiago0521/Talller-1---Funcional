@@ -1,279 +1,600 @@
-# Ejemplo de informe de corrección
+# Corrección
 
-Fundamentos de Programación Funcional y Concurrente.
-Documento realizado por el docente Juan Francisco Díaz.
+## Introducción
 
-## 1. Argumentar la corrección de programas recursivos
+En este informe argumentaremos la corrección de las funciones implementadas en el taller de Cifrados Clásicos. El objetivo es justificar que cada función cumple con el comportamiento establecido en el enunciado.
 
-Sea $f : A \to B$ una función, y $A$ un conjunto definido recursivamente
-(recordar la definición de Matemáticas Discretas I), como por ejemplo los
-naturales o las listas.
+Las funciones trabajan únicamente con las **26 letras minúsculas del alfabeto inglés** cuando se trata de cifrado o conteo de frecuencias. Los caracteres que no son letras minúsculas se conservan sin modificación en los cifrados y no se cuentan en `frecuencias`.
 
-Sea $P_f$ un programa recursivo (lineal o en árbol) desarrollado en Scala (o en
-cualquier lenguaje de programación) hecho para calcular $f$:
+Las demostraciones se realizan mediante inducción sobre la estructura del mensaje o sobre el tamaño del problema cuando la función es recursiva. Para las funciones de recursión de cola se utiliza un **invariante** que describe qué representa el acumulador en cada paso.
+
+---
+
+# 1. Corrección de `cesar`
+
+La función `cesar` recibe un mensaje `m` y un desplazamiento `k`. Para cada letra minúscula calcula su nueva posición en el alfabeto mediante:
+
+$$
+p' = (p + k) \bmod 26
+$$
+
+donde \(p\) es la posición de la letra original y \(p'\) es la posición de la letra cifrada.
+
+Los caracteres que no son letras minúsculas se copian sin cambios.
+
+### Caso base
+
+Si el mensaje es vacío:
 
 ```scala
-def Pf(a: A): B = { // Pf recibe a de tipo A, y devuelve f(a) de tipo B
-  ...
+cesar("", k)
+```
+
+la función devuelve:
+
+```text
+""
+```
+
+Esto es correcto porque no existen caracteres que cifrar.
+
+### Paso inductivo
+
+Supongamos que `cesar` funciona correctamente para el resto del mensaje `resto`.
+
+Para un mensaje:
+
+```text
+primero + resto
+```
+
+la función analiza `primero`.
+
+Si `primero` es una letra minúscula, calcula:
+
+$$
+p = \text{posición}(primero)
+$$
+
+y después:
+
+$$
+p' = (p+k)\bmod 26
+$$
+
+La letra correspondiente a \(p'\) es la letra cifrada.
+
+Luego aplica recursivamente:
+
+```scala
+cesar(resto, k)
+```
+
+Por hipótesis inductiva, esta llamada cifra correctamente el resto del mensaje. Finalmente, la función concatena la letra cifrada con el resultado obtenido para el resto.
+
+Si `primero` no es una letra minúscula, se conserva:
+
+```scala
+primero + cesar(resto, k)
+```
+
+Por lo tanto, el primer carácter se procesa correctamente y el resto también.
+
+### Corrección
+
+Por inducción sobre la longitud del mensaje, `cesar(m, k)` devuelve exactamente el mensaje en el que cada letra minúscula ha sido desplazada `k` posiciones y todos los demás caracteres permanecen sin cambios.
+
+---
+
+# 2. Corrección de `cesarCola`
+
+`cesarCola` realiza el mismo cifrado que `cesar`, pero utilizando un acumulador:
+
+```scala
+cesarCola(m, k, acc)
+```
+
+El acumulador contiene el resultado que ya ha sido procesado.
+
+## Invariante
+
+Durante toda la ejecución se mantiene el siguiente invariante:
+
+> `acc` contiene exactamente el cifrado de los caracteres que ya fueron procesados del mensaje original.
+
+Por tanto, si el mensaje original puede dividirse como:
+
+$$
+m = procesado + resto
+$$
+
+el acumulador representa:
+
+$$
+acc = cesar(procesado,k)
+$$
+
+### Estado inicial
+
+La llamada comienza normalmente como:
+
+```scala
+cesarCola(m, k, "")
+```
+
+El acumulador está vacío porque todavía no se ha procesado ningún carácter.
+
+El invariante se cumple.
+
+### Transformación
+
+En cada llamada se toma:
+
+```scala
+val primero = m.head
+```
+
+Si es una letra minúscula, se calcula su desplazamiento y se agrega la nueva letra:
+
+```scala
+cesarCola(resto, k, acc + nuevaLetra)
+```
+
+Si no es una letra minúscula, se conserva:
+
+```scala
+cesarCola(resto, k, acc + primero)
+```
+
+En ambos casos, el nuevo acumulador contiene el resultado correcto para todos los caracteres procesados hasta ese momento. Por lo tanto, el invariante se conserva.
+
+### Caso final
+
+Cuando:
+
+```scala
+m.isEmpty
+```
+
+la función devuelve:
+
+```scala
+acc
+```
+
+En ese momento ya no quedan caracteres por procesar. Por el invariante, `acc` contiene el cifrado completo del mensaje original.
+
+Por tanto:
+
+$$
+cesarCola(m,k,"") = cesar(m,k)
+$$
+
+La función es correcta.
+
+Además, la llamada recursiva es la última operación realizada, por lo que está correctamente anotada con `@tailrec`.
+
+---
+
+# 3. Corrección de `frecuencias`
+
+La función `frecuencias` calcula cuántas veces aparece cada letra minúscula del mensaje.
+
+Los caracteres que no son letras minúsculas son ignorados.
+
+Después del recorrido, ordena los resultados mediante:
+
+```scala
+sortBy {
+  case (letra, cantidad) => (-cantidad, letra)
 }
 ```
 
-¿Cómo argumentar que $P_f(a)$ siempre devuelve $f(a)$ como respuesta? Es decir,
-¿cómo argumentar que $P_f$ es correcto con respecto a su especificación?
+Esto produce primero las letras con mayor frecuencia y, en caso de empate, las ordena alfabéticamente.
 
-La respuesta es sencilla: demostrando el siguiente teorema.
+## Invariante del recorrido
 
-```math
-\forall a \in A : P_f(a) == f(a)
-```
-
-Cuando uno tiene que demostrar que algo se cumple para todos los elementos de
-un conjunto definido recursivamente, es natural usar inducción estructural. En
-términos prácticos, esto significa demostrar que:
-
-- Para cada valor básico $a$ de $A$, se tiene que $P_f(a) == f(a)$.
-- Para cada valor $a \in A$ construido recursivamente a partir de otro(s)
-  valor(es) $a' \in A$, se tiene que
-  $P_f(a') == f(a') \rightarrow P_f(a) == f(a)$. (Esta es la hipótesis de
-  inducción).
-
-### Ejemplo: factorial recursivo
-
-Sea $f : \mathbb{N} \to \mathbb{N}$ la función que calcula el factorial de un
-número natural, es decir, $f(n) = n!$. Y sea $P_f$ el siguiente programa en
-Scala:
+La función auxiliar:
 
 ```scala
-def Pf(n: Int): Int = { // Pf recibe n de tipo Int, y devuelve n! de tipo Int
-  if (n == 0) 1 else n * Pf(n - 1)
+contar(resto, acumuladas)
+```
+
+mantiene el siguiente invariante:
+
+> `acumuladas` contiene exactamente las frecuencias de todas las letras minúsculas que ya fueron procesadas.
+
+### Estado inicial
+
+La ejecución comienza con:
+
+```scala
+contar(m, List())
+```
+
+Todavía no se ha procesado ningún carácter, por lo que la lista de frecuencias está vacía.
+
+El invariante se cumple.
+
+### Procesamiento de una letra
+
+Si el primer carácter es una letra minúscula, se busca dentro de `acumuladas`.
+
+Si ya existe, su cantidad se incrementa en uno:
+
+```scala
+(c, cantidad + 1)
+```
+
+Si todavía no existe, se añade:
+
+```scala
+(letra, 1) :: acumuladas
+```
+
+Por lo tanto, la frecuencia de la letra procesada queda actualizada correctamente.
+
+### Procesamiento de un carácter no válido
+
+Si el carácter no es una letra minúscula, se realiza:
+
+```scala
+contar(resto.tail, acumuladas)
+```
+
+El acumulador no cambia porque ese carácter no debe formar parte de las frecuencias.
+
+### Caso final
+
+Cuando `resto` está vacío:
+
+```scala
+if (resto.isEmpty) acumuladas
+```
+
+ya se han procesado todos los caracteres.
+
+Por el invariante, `acumuladas` contiene las frecuencias correctas de todas las letras minúsculas del mensaje.
+
+Finalmente se ordena la lista por:
+
+$$
+(-cantidad, letra)
+$$
+
+El signo negativo hace que las mayores cantidades aparezcan primero y `letra` resuelve los empates en orden alfabético.
+
+Por tanto, `frecuencias` devuelve exactamente las frecuencias solicitadas.
+
+---
+
+# 4. Corrección de `desplazamientoProbable`
+
+La función `desplazamientoProbable` parte de la hipótesis indicada por el enunciado:
+
+> La letra más frecuente del mensaje cifrado corresponde a la letra `e` del mensaje original.
+
+Primero obtiene:
+
+```scala
+val frecs = frecuencias(m)
+```
+
+Como `frecuencias` devuelve las letras ordenadas de mayor a menor frecuencia, si la lista no está vacía:
+
+```scala
+frecs.head._1
+```
+
+es la letra más frecuente.
+
+Sea \(c\) la posición de esa letra y sea \(e\) la posición de la letra `e`.
+
+El desplazamiento se calcula como:
+
+$$
+k = (c-e+26)\bmod 26
+$$
+
+La suma de `26` permite que el resultado sea válido incluso cuando `c` se encuentra antes de `e` en el alfabeto.
+
+Por ejemplo, si la letra más frecuente es `z`:
+
+$$
+k = (25-4+26)\bmod26
+$$
+
+$$
+k = 47\bmod26 = 21
+$$
+
+Por lo tanto, la función devuelve correctamente el desplazamiento probable.
+
+Si no existen letras:
+
+```scala
+if (frecs.isEmpty) 0
+```
+
+devuelve `0`, que representa que no puede determinarse ningún desplazamiento y se utiliza el valor indicado por la implementación.
+
+---
+
+# 5. Corrección de `romperCesar`
+
+La función:
+
+```scala
+def romperCesar(m: Mensaje): Mensaje = {
+  cesar(m, -desplazamientoProbable(m))
 }
 ```
 
-Vamos a demostrar que $\forall n \in \mathbb{N} : P_f(n) == n!$
+utiliza el desplazamiento probable obtenido a partir de las frecuencias.
 
-**Caso base:** $n = 0$
+Supongamos que el mensaje original fue cifrado utilizando un desplazamiento \(k\).
 
-```math
-P_f(0) \rightarrow \text{if } (0 == 0)\ 1 \text{ else } 0 \ast P_f(-1) \rightarrow 1
-```
+El cifrado César realiza:
 
-Por otro lado, $f(0) = 0! = 1$. Entonces $P_f(0) == f(0)$.
+$$
+p' = (p+k)\bmod26
+$$
 
-**Caso de inducción:** $n = k + 1$, $k \geq 0$. Hay que demostrar:
-$P_f(k) == f(k) \rightarrow P_f(k + 1) == f(k + 1)$
+Para recuperar la posición original se aplica el desplazamiento contrario:
 
-```math
-P_f(k+1) \rightarrow \text{if } (k+1 == 0)\ 1 \text{ else } (k+1) \ast P_f(k) \rightarrow (k+1) \ast P_f(k)
-```
+$$
+p = (p'-k)\bmod26
+$$
 
-Usando la hipótesis de inducción (HI):
-
-```math
-\rightarrow (k+1) \ast k! = (k+1)!
-```
-
-Por lo tanto, $P_f(k + 1) == f(k + 1)$.
-
-Concluimos por inducción que $\forall n \in \mathbb{N} : P_f(n) == n!$
-
-### Ejemplo: el máximo de una lista
-
-Sea $f : \text{List}[\mathbb{N}] \to \mathbb{N}$ la función que calcula el
-máximo de una lista de enteros positivos, no vacía. Y sea $P_f$ el siguiente
-programa en Scala:
+La función obtiene el desplazamiento probable `k` y aplica:
 
 ```scala
-def maxLin(l: List[Int]): Int = {
-  if (l.tail.isEmpty) l.head
-  else math.max(maxLin(l.tail), l.head)
-}
+cesar(m, -k)
 ```
 
-Demostraremos que:
+Por la corrección de `cesar`, esto desplaza cada letra en la dirección contraria.
 
-```math
-\forall n \in \mathbb{N} \setminus \{0\} : P_f(\text{List}(a_1, a_2, \ldots, a_n)) == f(\text{List}(a_1, a_2, \ldots, a_n))
-```
+Por tanto, bajo la hipótesis de que la letra más frecuente del mensaje cifrado corresponde a `e`, `romperCesar` recupera el mensaje original.
 
-**Caso base:** $n = 1$
+Si el mensaje no contiene letras minúsculas, `desplazamientoProbable` devuelve `0`, por lo que el mensaje permanece sin cambios.
 
-```math
-P_f(\text{List}(a_1)) \rightarrow \text{if } \text{List}(a_1).\text{tail.isEmpty then } \text{List}(a_1).\text{head else } \ldots \rightarrow \text{List}(a_1).\text{head} \rightarrow a_1
-```
+---
 
-Por otro lado, $f(\text{List}(a_1)) = a_1$. Entonces
-$P_f(\text{List}(a_1)) == f(\text{List}(a_1))$.
+# 6. Corrección de `combinaciones`
 
-**Caso de inducción:** $n = k + 1$, $k \geq 1$. Se debe demostrar:
+La función `combinaciones(n, a)` calcula cuántos mensajes de longitud `n` pueden formarse utilizando `a` letras sin que haya dos letras iguales consecutivas.
 
-```math
-P_f(\text{List}(b_1, b_2, \ldots, b_k)) == f(\text{List}(b_1, b_2, \ldots, b_k)) \rightarrow P_f(\text{List}(a_1, a_2, \ldots, a_{k+1})) == f(\text{List}(a_1, a_2, \ldots, a_{k+1}))
-```
+La recurrencia implementada es:
 
-Empecemos por calcular qué devuelve $P_f$ usando el modelo de sustitución:
+$$
+C(0,a)=1
+$$
 
-```math
-P_f(L) \rightarrow \text{if } L.\text{tail.isEmpty then } L.\text{head else math.max}(P_f(L.\text{tail}), L.\text{head})
-```
+$$
+C(1,a)=a
+$$
 
-```math
-\rightarrow \text{math.max}(P_f(\text{List}(a_2, \ldots, a_{k+1})), a_1)
-```
+y para 
 
-Sea $b = P_f(\text{List}(a_2, \ldots, a_{k+1}))$; por la hipótesis de
-inducción, $b = f(\text{List}(a_2, \ldots, a_{k+1}))$. Hay dos posibilidades:
+$$
+\(n\geq2\):
+$$
 
-- Si $\text{math.max}(b, a_1) = b$, entonces $b \geq a_1$ y
- $b == f(\text{List}(a_1, a_2, \ldots, a_{k+1}))$.
-- Si $\text{math.max}(b, a_1) = a_1$, entonces $a_1 \geq b$ y
- $a_1 == f(\text{List}(a_1, a_2, \ldots, a_{k+1}))$.
+$$
+C(n,a)=(a-1)C(n-1,a)
+$$
 
-Por lo tanto, $P_f(L) == f(L)$.
+## Caso base: \(n=0\)
 
-Concluimos por inducción que:
-
-```math
-\forall n \in \mathbb{N} \setminus \{0\} : P_f(\text{List}(a_1, a_2, \ldots, a_n)) == f(\text{List}(a_1, a_2, \ldots, a_n))
-```
-
-## 2. Argumentar la corrección de programas iterativos
-
-Para argumentar la corrección de programas iterativos, se debe formalizar cómo
-es la iteración. Esto implica definir:
-
-- Cómo se representa un estado de la iteración, $s$.
-- Cuál es el estado inicial, $s_0$.
-- Cuál es el estado final (o cómo se reconoce que un estado es final): $s_f$.
-- Qué condición (o predicado) cumple todo estado: $\text{Inv}(s)$ (invariante
-  de la iteración).
-- El mecanismo para pasar de un estado al siguiente: $\text{transformar}(s)$.
-  Si $s_i$ es el estado $i$, entonces $\text{transformar}(s_i) = s_{i+1}$.
-
-Un programa iterativo tiene la siguiente forma:
+La función devuelve:
 
 ```scala
-def Pf(a: A): B = { // Pf recibe a de tipo A, y devuelve f(a) de tipo B
-  def Pf_iter(s: Estado): B =
-    if (esFinal(s)) respuesta(s) else Pf_iter(transformar(s))
-  Pf_iter(s0)
-}
+BigInt(1)
 ```
 
-Demostración de corrección:
+Existe exactamente una cadena de longitud cero: la cadena vacía.
 
-- $\text{Inv}(s_0)$: el estado inicial cumple la condición invariante.
-- Si $(s_i \neq s_f \land \text{Inv}(s_i)) \rightarrow \text{Inv}(\text{transformar}(s_i))$:
-  el nuevo estado cumple la condición invariante si el estado anterior la
-  cumplía.
-- De lo anterior se concluye $\text{Inv}(s_f)$, es decir, el estado final
-  cumple la condición invariante. Luego,
-  $\text{Inv}(s_f) \rightarrow \text{respuesta}(s_f) == f(a)$.
-- Finalmente, demostrar que siempre se llega al estado final $s_f$. Esto
-  implica que
-  $P_f(a) == \text{iter}(s_0) == \text{respuesta}(s_f) == f(a)$.
+Por tanto:
 
-### Ejemplo: factorial iterativo
+$$
+C(0,a)=1
+$$
 
-Considere el siguiente programa iterativo en Scala para calcular la función
-factorial:
+es correcto.
+
+## Caso base: \(n=1\)
+
+La función devuelve:
 
 ```scala
-def Pf(n: Int): Int = { // Pf recibe n de tipo Int, y devuelve n! de tipo Int
-  def Pf_iter(i: Int, n: Int, ac: Int): Int =
-    if (i > n) ac else Pf_iter(i + 1, n, i * ac)
-  Pf_iter(1, n, 1)
-}
+BigInt(a)
 ```
 
-Este programa implementa el siguiente proceso iterativo:
+Para una cadena de una sola posición, cualquiera de las `a` letras disponibles puede utilizarse.
 
-- Un estado $s = (i, n, ac)$.
-- El estado inicial es $s_0 = (1, n, 1)$.
-- $(i, n, ac)$ es final si $i > n$, o lo que es lo mismo, si $i = n + 1$.
-- La invariante de ciclo es
-  $\text{Inv}(i, n, ac) \equiv i \leq n + 1 \land ac = (i-1)!$.
-  La invariante de ciclo es una relación que SIEMPRE se cumple en el ciclo.
-- $\text{transformar}((i, n, ac)) = (i+1, n, i \ast ac)$.
+Por tanto:
 
-Ahora, demostramos los puntos mencionados:
+$$
+C(1,a)=a
+$$
 
-**1.** $\text{Inv}(s_0)$: el estado inicial cumple la condición invariante.
+es correcto.
 
-```math
-s_0 = (1, n, 1) \implies 1 \leq n + 1 \land 1 = 0!
-```
+## Paso inductivo
 
-**2.** La invariante se mantiene con la transformación de estados,
-$(s_i \neq s_f \land \text{Inv}(s_i)) \rightarrow \text{Inv}(\text{transformar}(s_i))$:
+Supongamos que:
 
-1. Primer cambio, $i = i + 1$, lo que implica $ac = ((i+1) - 1)! = i!$.
-2. Segundo cambio, $ac = i \ast ac$, entonces $ac = (i - 1)! \ast i = i!$.
-3. Como se puede ver en ambos cambios indicados en la transformación, la
-   invariante se mantiene.
+$$
+C(n-1,a)
+$$
 
-**3.** $\text{Inv}(s_f) \rightarrow \text{respuesta}(s_f) == f(a)$
+representa correctamente el número de mensajes de longitud \(n-1\) sin letras iguales consecutivas.
 
-```math
-(n + 1 \leq n + 1) \land ac = ((n+1)-1)! \rightarrow ac == n!
-```
+Para construir un mensaje de longitud \(n\), tomamos uno de esos mensajes y añadimos una letra al final.
 
-**4.** En cada paso, la componente $i$ del estado incrementa, acercándose a $n+1$.
-Después de $n$ iteraciones, se alcanza $n+1$.
+La nueva letra no puede ser igual a la última letra utilizada. Si existen `a` letras disponibles, quedan:
 
-Esto implica que $P_f(n) == \text{iter}(1, n, 1) == n!$
+$$
+a-1
+$$
 
-### Ejemplo: el máximo de una lista
+opciones válidas.
 
-Se desea calcular el máximo de una lista de enteros positivos, no vacía. Sea
-$f : \text{List}[\mathbb{N}] \to \mathbb{N}$ la función que calcula ese valor.
-Y sea $P_f$ el siguiente programa en Scala:
+Por tanto:
+
+$$
+C(n,a)=(a-1)C(n-1,a)
+$$
+
+que es exactamente la operación implementada:
 
 ```scala
-def maxIt(l: List[Int]): Int = {
-  def maxAux(max: Int, l: List[Int]): Int = {
-    if (l.isEmpty) max
-    else maxAux(math.max(max, l.head), l.tail)
-  }
-  maxAux(l.head, l.tail)
-}
+BigInt(a - 1) * combinaciones(n - 1, a)
 ```
 
-Este programa implementa el siguiente proceso iterativo:
+Por inducción sobre `n`, `combinaciones` calcula correctamente el número de mensajes solicitado.
 
-- Un estado $s = (max, l)$ donde $l = \text{List}(a_i, a_{i+1}, \ldots, a_k)$
-  es una cola de $L$.
-- El estado inicial es
-  $s_0 = (L.\text{head}, L.\text{tail}) = (a_1, \text{List}(a_2, \ldots, a_k))$.
-- $s = (max, l)$ es final si $l$ es vacía.
-- $\text{Inv}(max, l) \equiv l = \text{List}(a_i, a_{i+1}, \ldots, a_k) \land max = f(\text{List}(a_1, a_2, \ldots, a_{i-1}))$.
-- $\text{transformar}((max, l)) = (nmax, l.\text{tail})$ donde $nmax = max$ si
-  $max \geq l.\text{head}$, y $nmax = l.\text{head}$ si no.
+---
 
-Demostración de los puntos:
+# 7. Corrección de `vigenere`
 
-**1.** $\text{Inv}(s_0)$: el estado inicial cumple la condición invariante.
+La función `vigenere` cifra un mensaje utilizando una clave. Cada letra minúscula del mensaje se desplaza según la letra correspondiente de la clave.
 
-```math
-s_0 = (a_1, \text{List}(a_2, \ldots, a_k)) \implies a_1 = f(\text{List}(a_1))
+Si la letra del mensaje tiene posición \(p\) y la letra de la clave tiene posición \(k\), la nueva posición es:
+
+$$
+p'=(p+k)\bmod26
+$$
+
+La clave se recorre de forma circular mediante:
+
+```scala
+(posicionClave + 1) % clave.length
 ```
 
-**2.** $(s_i \neq s_f \land \text{Inv}(s_i)) \rightarrow \text{Inv}(\text{transformar}(s_i))$
+## Caso de clave vacía
 
-```math
-\neg\, l.\text{isEmpty} \land l = \text{List}(a_i, a_{i+1}, \ldots, a_k) \land max = f(\text{List}(a_1, a_2, \ldots, a_{i-1}))
+Si:
+
+```scala
+clave.isEmpty
 ```
 
-```math
-\rightarrow l.\text{tail} = \text{List}(a_{i+1}, \ldots, a_k) \land nmax = f(\text{List}(a_1, \ldots, a_i))
+la función devuelve directamente:
+
+```scala
+m
 ```
 
-**3.** $\text{Inv}(s_f) \rightarrow \text{respuesta}(s_f) == f(a)$
+Esto evita intentar acceder a una posición inexistente de la clave.
 
-```math
-\text{Inv}((max, \text{List}())) \rightarrow max = f(\text{List}(a_1, \ldots, a_k))
+## Invariante
+
+La función auxiliar:
+
+```scala
+cifrar(resto, posicionClave, acc)
 ```
 
-**4.** En cada paso, la lista $l$ se reduce, acercándose a ser vacía. Después de
-$k$ iteraciones, $l = \text{List}()$.
+mantiene el siguiente invariante:
 
-Esto implica que $P_f(L) == \text{maxAux}(L.\text{head}, L.\text{tail}) == f(L)$
+> `acc` contiene exactamente el resultado del cifrado de los caracteres minúsculos procesados hasta el momento, y `posicionClave` indica la posición de la clave que debe utilizarse para la siguiente letra minúscula.
+
+### Procesamiento de una letra minúscula
+
+Si `primero` es una letra minúscula, se obtiene:
+
+```scala
+val letraClave = clave.charAt(posicionClave)
+```
+
+La posición de la letra de la clave determina el desplazamiento:
+
+$$
+desplazamiento = posición(letraClave)
+$$
+
+Después se calcula:
+
+$$
+nuevaPosicion =
+(posición(primero)+desplazamiento)\bmod26
+$$
+
+y se agrega la nueva letra al acumulador.
+
+Finalmente, la posición de la clave avanza:
+
+```scala
+val siguientePosicion =
+  (posicionClave + 1) % clave.length
+```
+
+Por lo tanto, el invariante se mantiene.
+
+### Procesamiento de caracteres que no son letras minúsculas
+
+Si el carácter no es una letra minúscula, se realiza:
+
+```scala
+cifrar(resto.tail, posicionClave, acc + primero)
+```
+
+El carácter se copia sin modificar y, además, `posicionClave` no cambia.
+
+Esto es correcto porque los caracteres que no son letras minúsculas no deben consumir posiciones de la clave.
+
+### Caso final
+
+Cuando `resto` está vacío:
+
+```scala
+if (resto.isEmpty) acc
+```
+
+todos los caracteres han sido procesados.
+
+Por el invariante, `acc` contiene el mensaje cifrado completo y `posicionClave` ya no necesita avanzar.
+
+Por tanto, `vigenere` produce exactamente el cifrado Vigenère especificado.
+
+---
+
+# 8. Relación entre las funciones
+
+Las funciones también pueden considerarse correctas en conjunto.
+
+El proceso para romper un cifrado César es:
+
+$$
+m
+\rightarrow frecuencias(m)
+\rightarrow desplazamientoProbable(m)
+\rightarrow cesar(m,-k)
+$$
+
+`frecuencias` identifica la letra que aparece más veces, `desplazamientoProbable` estima el desplazamiento suponiendo que dicha letra corresponde a `e`, y `romperCesar` aplica el desplazamiento contrario.
+
+Por otro lado, `cesar` y `cesarCola` realizan la misma transformación:
+
+$$
+cesar(m,k)=cesarCola(m,k,"")
+$$
+
+La diferencia entre ambas funciones no está en el resultado, sino en la forma de realizar la recursión. `cesar` conserva una operación pendiente después de la llamada recursiva, mientras que `cesarCola` utiliza un acumulador y realiza la llamada recursiva como última operación.
+
+---
+
+# Conclusión
+
+Las funciones implementadas cumplen las especificaciones del taller bajo las condiciones establecidas:
+
+* `cesar` desplaza las letras minúsculas según un desplazamiento dado y conserva los demás caracteres.
+* `cesarCola` realiza el mismo cifrado utilizando recursión de cola y un acumulador.
+* `frecuencias` cuenta las letras minúsculas y las ordena por frecuencia descendente y orden alfabético en caso de empate.
+* `desplazamientoProbable` estima el desplazamiento suponiendo que la letra más frecuente representa a `e`.
+* `romperCesar` aplica el desplazamiento contrario para intentar recuperar el mensaje original.
+* `combinaciones` calcula el número de mensajes de longitud `n` sin letras iguales consecutivas mediante la recurrencia correspondiente.
+* `vigenere` aplica los desplazamientos definidos por una clave circular y no consume clave al encontrar caracteres que no sean letras minúsculas.
+
+Las demostraciones mediante casos base, pasos inductivos e invariantes permiten justificar que los resultados obtenidos por las funciones corresponden con las operaciones definidas en el enunciado.
